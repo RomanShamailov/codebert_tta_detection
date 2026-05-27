@@ -7,7 +7,8 @@ from transformers import (
     AutoTokenizer, 
     AutoModelForSequenceClassification, 
     Trainer, 
-    TrainingArguments
+    TrainingArguments,
+    DataCollatorWithPadding
 )
     
 wandb.init(project="codebert-tta-detect", name="hmcorp-python-baseline")
@@ -40,7 +41,6 @@ print(f"Train size: {len(train_dataset)}")
 def gptsniffer_tokenize_function(examples):
     return tokenizer(
         examples["code"], 
-        padding="max_length", 
         max_length=512, 
         truncation=True
     )
@@ -83,12 +83,15 @@ def compute_metrics(eval_pred):
         "recall": recall_score(labels, predictions)
     }
 
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_train,
     eval_dataset=tokenized_eval,
-    compute_metrics=compute_metrics
+    compute_metrics=compute_metrics,
+    data_collator=data_collator
 )
 
 print("Training...")
