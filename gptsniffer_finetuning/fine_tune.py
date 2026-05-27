@@ -64,6 +64,7 @@ training_args = TrainingArguments(
     save_strategy="epoch",
     save_total_limit=2,
     fp16=True,
+    dataloader_num_workers=2,
     logging_steps=50,
     seed=42,
     
