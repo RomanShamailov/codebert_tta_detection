@@ -39,7 +39,7 @@ print(f"Train size: {len(train_dataset)}")
 
 def gptsniffer_tokenize_function(examples):
     return tokenizer(
-        examples["text"], 
+        examples["code"], 
         padding="max_length", 
         max_length=512, 
         truncation=True
