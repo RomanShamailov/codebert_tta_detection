@@ -1,5 +1,6 @@
 import torch
-import wandb
+# wandb.init() пока закомментируем, чтобы не мусорить в дашборде
+# import wandb 
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from datasets import load_dataset
@@ -11,7 +12,7 @@ from transformers import (
     DataCollatorWithPadding
 )
     
-wandb.init(project="codebert-tta-detect", name="hmcorp-python-baseline")
+# wandb.init(project="codebert-tta-detect", name="hmcorp-python-baseline-test")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -36,7 +37,6 @@ for col in target_col_candidates:
 train_dataset = full_dataset["train"]
 eval_dataset = full_dataset["validation"]
 test_dataset = full_dataset["test"]
-print(f"Train size: {len(train_dataset)}")
 
 def gptsniffer_tokenize_function(examples):
     return tokenizer(
@@ -50,26 +50,33 @@ tokenized_train = train_dataset.map(gptsniffer_tokenize_function, batched=True)
 tokenized_eval = eval_dataset.map(gptsniffer_tokenize_function, batched=True)
 tokenized_test = test_dataset.map(gptsniffer_tokenize_function, batched=True)
 
+# === СУЖАЕМ ВЫБОРКУ ДО 1 БАТЧА ДЛЯ A100 (128 примеров) ===
+print("Selecting 128 examples for One Batch Test...")
+tokenized_train = tokenized_train.select(range(128))
+tokenized_eval = tokenized_eval.select(range(128))
+tokenized_test = tokenized_test.select(range(128))
+# =========================================================
+
 training_args = TrainingArguments(
-    output_dir='./results_gptsniffer',
+    output_dir='./results_gptsniffer_test',
     learning_rate=5e-5,
-    per_device_train_batch_size=32,
-    per_device_eval_batch_size=32,
-    warmup_steps=500,
+    per_device_train_batch_size=128,
+    per_device_eval_batch_size=128,
+    warmup_steps=0,          # Убираем разогрев для теста
     weight_decay=0.01,
     optim='adamw_torch',
-    num_train_epochs=2, 
     
+    num_train_epochs=3,      # Прогоним батч 3 раза, чтобы проверить сохранение
     eval_strategy="epoch",
     save_strategy="epoch",
-    save_total_limit=2,
-    fp16=True,
-    dataloader_num_workers=2,
-    logging_steps=50,
+    save_total_limit=1,
+    
+    bf16=True,               # Та самая магия A100
+    dataloader_num_workers=4,
+    logging_steps=1,         # Печатаем лог на каждом шаге
     seed=42,
     
-    report_to="wandb",
-    run_name="hmcorp-python-baseline"
+    report_to="none",        # Отключаем W&B для теста
 )
 
 def compute_metrics(eval_pred):
@@ -105,9 +112,9 @@ for key, value in test_results.items():
     if any(m in key for m in ["accuracy", "f1", "precision", "recall", "loss"]):
         print(f"{key}: {value:.4f}")
 
-wandb.finish()
+# wandb.finish()
 
-OUTPUT_DIR = "./gptsniffer_hmcorp_baseline"
+OUTPUT_DIR = "./gptsniffer_hmcorp_baseline_test"
 trainer.save_model(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
-print(f"Finished fine-tuning. Weights saved to {OUTPUT_DIR}")
+print(f"Finished testing. Dummy weights saved to {OUTPUT_DIR}")
