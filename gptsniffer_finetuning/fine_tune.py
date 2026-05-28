@@ -51,7 +51,7 @@ tokenized_eval = eval_dataset.map(gptsniffer_tokenize_function, batched=True)
 tokenized_test = test_dataset.map(gptsniffer_tokenize_function, batched=True)
 
 training_args = TrainingArguments(
-    output_dir='./results_gptsniffer',
+    output_dir='/content/drive/MyDrive/gptsniffer_hmcorp_baseline',
     learning_rate=5e-5,
     per_device_train_batch_size=128,
     per_device_eval_batch_size=128,
@@ -107,7 +107,7 @@ for key, value in test_results.items():
 
 wandb.finish()
 
-OUTPUT_DIR = "./gptsniffer_hmcorp_baseline"
+OUTPUT_DIR = "/content/drive/MyDrive/gptsniffer_hmcorp_baseline"
 trainer.save_model(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
 print(f"Finished fine-tuning. Weights saved to {OUTPUT_DIR}")
