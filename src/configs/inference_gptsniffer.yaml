@@ -1,0 +1,18 @@
+defaults:
+  - model: gptsniffer
+  - metrics: binary
+  - datasets: gptsniffer_python_test
+  - dataloader: gptsniffer
+  - transforms: disabled
+  - writer: wandb
+  - tta: none
+  - _self_
+
+inferencer:
+  device_tensors: ["input_ids", "attention_mask", "labels"]
+  device: auto
+  save_path: "gptsniffer_tta"
+  save_predictions: false
+  seed: 1
+  from_pretrained: null # optional PyTorch checkpoint; HF weights load via model config
+  require_single_dataset: false

@@ -2,7 +2,6 @@ import logging
 import random
 from typing import List
 
-import torch
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
@@ -12,9 +11,8 @@ class BaseDataset(Dataset):
     """
     Base class for the datasets.
 
-    Given a proper index (list[dict]), allows to process different datasets
-    for the same task in the identical manner. Therefore, to work with
-    several datasets, the user only have to define index in a nested class.
+    Given a proper index (list[dict]), keeps common dataset utilities shared
+    by concrete dataset implementations.
     """
 
     def __init__(
@@ -23,8 +21,7 @@ class BaseDataset(Dataset):
         """
         Args:
             index (list[dict]): list, containing dict for each element of
-                the dataset. The dict has required metadata information,
-                such as label and object path.
+                the dataset. The dict has required metadata information.
             limit (int | None): if not None, limit the total number of elements
                 in the dataset to 'limit' elements.
             shuffle_index (bool): if True, shuffle the index. Uses python
@@ -40,48 +37,11 @@ class BaseDataset(Dataset):
 
         self.instance_transforms = instance_transforms
 
-    def __getitem__(self, ind):
-        """
-        Get element from the index, preprocess it, and combine it
-        into a dict.
-
-        Notice that the choice of key names is defined by the template user.
-        However, they should be consistent across dataset getitem, collate_fn,
-        loss_function forward method, and model forward method.
-
-        Args:
-            ind (int): index in the self.index list.
-        Returns:
-            instance_data (dict): dict, containing instance
-                (a single dataset element).
-        """
-        data_dict = self._index[ind]
-        data_path = data_dict["path"]
-        data_object = self.load_object(data_path)
-        data_label = data_dict["label"]
-
-        instance_data = {"data_object": data_object, "labels": data_label}
-        instance_data = self.preprocess_data(instance_data)
-
-        return instance_data
-
     def __len__(self):
         """
         Get length of the dataset (length of the index).
         """
         return len(self._index)
-
-    def load_object(self, path):
-        """
-        Load object from disk.
-
-        Args:
-            path (str): path to the object.
-        Returns:
-            data_object (Tensor):
-        """
-        data_object = torch.load(path)
-        return data_object
 
     def preprocess_data(self, instance_data):
         """
@@ -105,29 +65,6 @@ class BaseDataset(Dataset):
         return instance_data
 
     @staticmethod
-    def _filter_records_from_dataset(
-        index: list,
-    ) -> list:
-        """
-        Filter some of the elements from the dataset depending on
-        some condition.
-
-        This is not used in the example. The method should be called in
-        the __init__ before shuffling and limiting.
-
-        Args:
-            index (list[dict]): list, containing dict for each element of
-                the dataset. The dict has required metadata information,
-                such as label and object path.
-        Returns:
-            index (list[dict]): list, containing dict for each element of
-                the dataset that satisfied the condition. The dict has
-                required metadata information, such as label and object path.
-        """
-        # Filter logic
-        pass
-
-    @staticmethod
     def _assert_index_is_valid(index):
         """
         Check the structure of the index and ensure it satisfies the desired
@@ -140,31 +77,13 @@ class BaseDataset(Dataset):
         """
         for entry in index:
             assert "path" in entry, (
-                "Each dataset item should include field 'path'" " - path to audio file."
+                "Each dataset item should include field 'path'"
+                " - source path for diagnostics."
             )
             assert "label" in entry, (
                 "Each dataset item should include field 'label'"
                 " - object ground-truth label."
             )
-
-    @staticmethod
-    def _sort_index(index):
-        """
-        Sort index via some rules.
-
-        This is not used in the example. The method should be called in
-        the __init__ before shuffling and limiting and after filtering.
-
-        Args:
-            index (list[dict]): list, containing dict for each element of
-                the dataset. The dict has required metadata information,
-                such as label and object path.
-        Returns:
-            index (list[dict]): sorted list, containing dict for each element
-                of the dataset. The dict has required metadata information,
-                such as label and object path.
-        """
-        return sorted(index, key=lambda x: x["KEY_FOR_SORTING"])
 
     @staticmethod
     def _shuffle_and_limit_index(index, limit, shuffle_index):

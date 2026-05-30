@@ -40,7 +40,8 @@ class WandBWriter:
         try:
             import wandb
 
-            wandb.login()
+            if mode != "disabled":
+                wandb.login()
 
             self.run_id = run_id
 
@@ -228,3 +229,7 @@ class WandBWriter:
 
     def add_embedding(self, embedding_name, embedding):
         raise NotImplementedError()
+
+    def finish(self):
+        if hasattr(self, "wandb"):
+            self.wandb.finish()

@@ -1,0 +1,8 @@
+test:
+  _target_: src.datasets.CodeDataset
+  source: json
+  name_or_path: gptsniffer_finetuning/dataset/python/test_no_comment.jsonl
+  split: test
+  tokenizer_name_or_path: romangeek/hmcorp_python_gptsniffer
+  max_length: 512
+  instance_transforms: null

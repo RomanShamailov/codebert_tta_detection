@@ -23,7 +23,8 @@ class Inferencer(BaseTrainer):
         save_path,
         metrics=None,
         batch_transforms=None,
-        skip_model_load=False,
+        tta_adapter=None,
+        writer=None,
     ):
         """
         Initialize the Inferencer.
@@ -42,14 +43,10 @@ class Inferencer(BaseTrainer):
             batch_transforms (dict[nn.Module] | None): transforms that
                 should be applied on the whole batch. Depend on the
                 tensor name.
-            skip_model_load (bool): if False, require the user to set
-                pre-trained checkpoint path. Set this argument to True if
-                the model desirable weights are defined outside of the
-                Inferencer Class.
+            tta_adapter (BaseTTA): test-time adaptation strategy.
+            writer (WandBWriter | CometMLWriter | None): experiment tracker.
         """
-        assert (
-            skip_model_load or config.inferencer.get("from_pretrained") is not None
-        ), "Provide checkpoint or set skip_model_load=True"
+        assert tta_adapter is not None, "Provide initialized TTA adapter"
 
         self.config = config
         self.cfg_trainer = self.config.inferencer
@@ -58,6 +55,8 @@ class Inferencer(BaseTrainer):
 
         self.model = model
         self.batch_transforms = batch_transforms
+        self.tta_adapter = tta_adapter
+        self.writer = writer
 
         # define dataloaders
         self.evaluation_dataloaders = {k: v for k, v in dataloaders.items()}
@@ -71,14 +70,14 @@ class Inferencer(BaseTrainer):
         if self.metrics is not None:
             self.evaluation_metrics = MetricTracker(
                 *[m.name for m in self.metrics["inference"]],
-                writer=None,
+                writer=self.writer,
             )
         else:
             self.evaluation_metrics = None
 
-        if not skip_model_load:
-            # init model
-            self._from_pretrained(config.inferencer.get("from_pretrained"))
+        pretrained_path = config.inferencer.get("from_pretrained")
+        if pretrained_path is not None:
+            self._from_pretrained(pretrained_path)
 
     def run_inference(self):
         """
@@ -94,13 +93,28 @@ class Inferencer(BaseTrainer):
             part_logs[part] = logs
         return part_logs
 
+    @staticmethod
+    def _scalar_logs(logs):
+        if logs is None:
+            return None
+        result = {}
+        for key, value in logs.items():
+            if isinstance(value, torch.Tensor):
+                value = value.detach().cpu().item()
+            result[key] = value
+        return result
+
+    def _log_scalars_to_writer(self, scalars, prefix):
+        if self.writer is None or not scalars:
+            return
+        self.writer.add_scalars(
+            {f"{prefix}/{key}": value for key, value in scalars.items()}
+        )
+
     def process_batch(self, batch_idx, batch, metrics, part):
         """
-        Run batch through the model, compute metrics, and
+        Run batch through the model, compute metrics, and optionally
         save predictions to disk.
-
-        Save directory is defined by save_path in the inference
-        config and current partition.
 
         Args:
             batch_idx (int): the index of the current batch.
@@ -119,27 +133,28 @@ class Inferencer(BaseTrainer):
         batch = self.move_batch_to_device(batch)
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
-        outputs = self.model(**batch)
+        outputs = self.tta_adapter.predict_batch(batch)
         batch.update(outputs)
+        self._log_scalars_to_writer(self._scalar_logs(batch.get("tta_logs")), "tta")
 
         if metrics is not None:
             for met in self.metrics["inference"]:
                 metrics.update(met.name, met(**batch))
+            self._log_scalars_to_writer(metrics.result(), "metrics")
 
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
+        if self.cfg_trainer.get("save_predictions", False):
+            self._save_predictions(batch_idx, batch, part)
 
+        return batch
+
+    def _save_predictions(self, batch_idx, batch, part):
         batch_size = batch["logits"].shape[0]
         current_id = batch_idx * batch_size
 
         for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
             logits = batch["logits"][i].clone()
             label = batch["labels"][i].clone()
             pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
 
             output = {
                 "pred_label": pred_label,
@@ -147,10 +162,8 @@ class Inferencer(BaseTrainer):
             }
 
             if self.save_path is not None:
-                # you can use safetensors or other lib here
+                output_id = current_id + i
                 torch.save(output, self.save_path / part / f"output_{output_id}.pth")
-
-        return batch
 
     def _inference_part(self, part, dataloader):
         """
@@ -167,22 +180,37 @@ class Inferencer(BaseTrainer):
         self.model.eval()
 
         self.evaluation_metrics.reset()
+        if self.writer is not None:
+            self.writer.set_step(0, part)
+
+        prep_logs = self.tta_adapter.before_partition(
+            dataloader=dataloader,
+            move_batch_to_device=self.move_batch_to_device,
+            transform_batch=self.transform_batch,
+        )
+        self._log_scalars_to_writer(self._scalar_logs(prep_logs), "tta")
 
         # create Save dir
         if self.save_path is not None:
             (self.save_path / part).mkdir(exist_ok=True, parents=True)
 
-        with torch.no_grad():
-            for batch_idx, batch in tqdm(
-                enumerate(dataloader),
-                desc=part,
-                total=len(dataloader),
-            ):
-                batch = self.process_batch(
-                    batch_idx=batch_idx,
-                    batch=batch,
-                    part=part,
-                    metrics=self.evaluation_metrics,
-                )
+        for batch_idx, batch in tqdm(
+            enumerate(dataloader),
+            desc=part,
+            total=len(dataloader),
+        ):
+            if self.writer is not None:
+                self.writer.set_step(batch_idx, part)
+            batch = self.process_batch(
+                batch_idx=batch_idx,
+                batch=batch,
+                part=part,
+                metrics=self.evaluation_metrics,
+            )
 
-        return self.evaluation_metrics.result()
+        logs = self.evaluation_metrics.result()
+        if self.writer is not None:
+            self.writer.set_step(len(dataloader), part)
+            self._log_scalars_to_writer(logs, "final_metrics")
+
+        return logs

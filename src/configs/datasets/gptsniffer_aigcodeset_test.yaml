@@ -1,0 +1,10 @@
+test:
+  _target_: src.datasets.CodeDataset
+  source: hf
+  name_or_path: basakdemirok/AIGCodeSet
+  split: test
+  tokenizer_name_or_path: romangeek/hmcorp_python_gptsniffer
+  max_length: 512
+  code_key: code
+  label_keys: ["label"]
+  instance_transforms: null

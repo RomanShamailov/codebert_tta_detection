@@ -1,0 +1,5 @@
+_target_: src.tta.TentTTA
+lr: 1e-5
+steps: 1
+reset_each_batch: true
+norm_layer_names: ["LayerNorm"]

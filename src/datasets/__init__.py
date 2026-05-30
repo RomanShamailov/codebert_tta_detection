@@ -1,1 +1,5 @@
-from src.datasets.example import ExampleDataset
+from src.datasets.code import CodeDataset
+
+__all__ = [
+    "CodeDataset",
+]

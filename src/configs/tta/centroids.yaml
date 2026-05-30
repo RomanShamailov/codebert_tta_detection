@@ -1,0 +1,4 @@
+_target_: src.tta.CentroidPseudoLabelTTA
+num_classes: 2
+distance: cosine
+logit_scale: 10.0
