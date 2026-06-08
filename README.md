@@ -21,10 +21,10 @@ pipeline.
 - Optional experiment logging through WandB or Comet ML.
 - TTA methods:
   - `none`: frozen source detector.
-  - `tent`: entropy minimization on LayerNorm affine parameters.
+  - `tent`: TENT-style entropy minimization on LayerNorm affine parameters.
   - `tent` with accumulation: same method without resetting adapted weights after each batch.
-  - `centroids`: centroid-based pseudo-label correction in embedding space.
-  - `t2a`: lightweight T^2A-inspired uncertainty-aware negative learning.
+  - `centroids`: SHOT-inspired centroid-based pseudo-label correction in embedding space.
+  - `t2a`: lightweight T2A-inspired uncertainty-aware negative learning.
 - Sanity-check baselines:
   - TF-IDF + logistic regression.
   - External CodeBERT detector evaluation.
@@ -48,7 +48,7 @@ pipeline.
 │   └── tta/                             # TTA implementations
 ├── gptsniffer_finetuning/               # Fine-tuning utilities and local data
 ├── run_main.ipynb                       # Colab notebook for 4 datasets x 4 methods
-├── run_t2a.ipynb                        # Colab notebook for T^2A runs
+├── run_t2a.ipynb                        # Colab notebook for T2A runs
 ├── run_aigcodeset_hyperparameters.ipynb # AIGCodeSet ablation runs
 ├── sklearn_logreg_baseline.py           # TF-IDF logistic regression baseline
 ├── codegendetect_codebert_eval.py       # External CodeBERT detector evaluation
@@ -117,6 +117,9 @@ By default, it uses:
 - writer: `wandb`
 - batch size: `128`
 
+Multi-line shell commands below use `\` as a line continuation character. They
+can also be written as a single line by removing the backslashes and newlines.
+
 ### Disable Logging
 
 For local smoke tests:
@@ -173,7 +176,7 @@ python -u inference.py \
   tta.logit_scale=10
 ```
 
-### Run T^2A-Inspired TTA
+### Run T2A-Inspired TTA
 
 ```bash
 python -u inference.py \
@@ -233,7 +236,7 @@ writer=cometml
 The Colab notebooks automate the main runs:
 
 - `run_main.ipynb`: four target datasets with `none`, `tent`, accumulated `tent`, and `centroids`.
-- `run_t2a.ipynb`: T^2A-inspired runs on all four datasets.
+- `run_t2a.ipynb`: T2A-inspired runs on all four datasets.
 - `run_aigcodeset_hyperparameters.ipynb`: AIGCodeSet ablations for TENT and centroid settings.
 - `run_codegendetect_codebert.ipynb`: evaluation of the external CodeBERT detector.
 - `run_gptsniffer_diagnostics.ipynb`: prediction-bias diagnostics.
@@ -299,6 +302,26 @@ distribution shift.
 - Local predictions are saved under `data/saved/<inferencer.save_path>` only when
   `inferencer.save_predictions=true`.
 - TTA does not save adapted model weights; adaptation happens during inference.
+
+## References
+
+Main detector and model:
+
+- GPTSniffer: [GPTSniffer: A CodeBERT-based classifier to detect source code written by ChatGPT](https://www.sciencedirect.com/science/article/pii/S0164121224001043).
+- CodeBERT: [CodeBERT: A Pre-Trained Model for Programming and Natural Languages](https://arxiv.org/abs/2002.08155).
+
+TTA and pseudo-labeling methods:
+
+- TENT: [Fully Test-time Adaptation by Entropy Minimization](https://arxiv.org/abs/2006.10726).
+- Pseudo-labeling: [Pseudo-Label: The Simple and Efficient Semi-Supervised Learning Method for Deep Neural Networks](https://citeseerx.ist.psu.edu/document?doi=798d9840d2439a0e5d47bcf5d164aa46d5e7dc26&repid=rep1&type=pdf).
+- SHOT: [Do We Really Need to Access the Source Data? Source Hypothesis Transfer for Unsupervised Domain Adaptation](https://arxiv.org/abs/2002.08546).
+- T2A: [Think Twice before Adaptation: Improving Adaptability of DeepFake Detection via Online Test-Time Adaptation](https://arxiv.org/abs/2505.18787).
+
+Evaluation datasets and baselines:
+
+- AIGCodeSet: [A new annotated dataset for AI generated code detection](https://huggingface.co/datasets/basakdemirok/AIGCodeSet).
+- External detector: [CodeGenDetect-CodeBert](https://huggingface.co/azherali/CodeGenDetect-CodeBert).
+- Project template: [Blinorot PyTorch project template](https://github.com/Blinorot/pytorch_project_template/tree/main).
 
 ## License
 
