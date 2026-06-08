@@ -1,149 +1,305 @@
-# PyTorch Template for DL projects
+# CodeBERT TTA Detection
 
-<p align="center">
-  <a href="#about">About</a> •
-  <a href="#tutorials">Tutorials</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#how-to-use">How To Use</a> •
-  <a href="#useful-links">Useful Links</a> •
-  <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
-</p>
+This repository contains the experimental pipeline for evaluating test-time
+adaptation (TTA) methods for AI-generated code detection. The source detector is
+a GPTSniffer-style CodeBERT classifier fine-tuned on the Python split of HMCorp.
+The project evaluates how this detector behaves under target-domain shifts and
+whether lightweight TTA methods can improve robustness without target labels.
 
-<p align="center">
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/LICENSE">
-   <img src=https://img.shields.io/badge/license-MIT-blue.svg>
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/CITATION.cff">
-   <img src="https://img.shields.io/badge/cite-this%20repo-purple">
-</a>
-</p>
+The codebase is adapted from the
+[Blinorot PyTorch project template](https://github.com/Blinorot/pytorch_project_template/tree/main),
+but the template training examples were removed in favor of an inference/TTA
+pipeline.
 
-## About
+## What Is Implemented
 
-This repository contains a template for [PyTorch](https://pytorch.org/)-based Deep Learning projects.
+- GPTSniffer-style CodeBERT binary classifier loaded from HuggingFace.
+- Unified `CodeDataset` for local JSONL files and HuggingFace datasets.
+- Dynamic batch padding for tokenized code.
+- Inference pipeline with Hydra configs.
+- Metrics: accuracy, precision, recall, and F1.
+- Optional experiment logging through WandB or Comet ML.
+- TTA methods:
+  - `none`: frozen source detector.
+  - `tent`: entropy minimization on LayerNorm affine parameters.
+  - `tent` with accumulation: same method without resetting adapted weights after each batch.
+  - `centroids`: centroid-based pseudo-label correction in embedding space.
+  - `t2a`: lightweight T^2A-inspired uncertainty-aware negative learning.
+- Sanity-check baselines:
+  - TF-IDF + logistic regression.
+  - External CodeBERT detector evaluation.
+  - Prediction-bias diagnostics for the source detector.
 
-The template utilizes different python-dev techniques to improve code readability. Configuration methods enhance reproducibility and experiments control.
+## Repository Layout
 
-The repository is released as a part of the [HSE DLA course](https://github.com/markovka17/dla), however, can easily be adopted for any DL-task.
-
-This template is the official recommended template for the [EPFL CS-433 ML Course](https://www.epfl.ch/labs/mlo/machine-learning-cs-433/).
-
-**New:** we added a [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main) variant of the template with [HuggingFace](https://huggingface.co/) Integration for multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
-
-> 📖 **If you use this template in your work, please cite this repository or include a reference. Attribution supports the project and encourages continued development.**
-
-## Tutorials
-
-This template utilizes experiment tracking techniques, such as [WandB](https://docs.wandb.ai/) and [Comet ML](https://www.comet.com/docs/v2/), and [Hydra](https://hydra.cc/docs/intro/) for the configuration. It also automatically reformats code and conducts several checks via [pre-commit](https://pre-commit.com/). If you are not familiar with these tools, we advise you to look at the tutorials below:
-
-- [Python Dev Tips](https://github.com/ebezzam/python-dev-tips): information about [Git](https://git-scm.com/doc), [pre-commit](https://pre-commit.com/), [Hydra](https://hydra.cc/docs/intro/), and other stuff for better Python code development. The YouTube recording of the workshop is available [here](https://youtu.be/okxaTuBdDuY).
-
-- [Seminar on R&D Coding 2025](https://youtu.be/PE1zaW5it_A): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with discussion on logging, project-based coding, configuration, and reproducibility. The materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/tree/summer25/day05).
-
-- [Seminar on R&D Coding 2024](https://youtu.be/sEA-Js5ZHxU): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with template discussion and reasoning. It also explains how to work with [WandB](https://docs.wandb.ai/). The seminar materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/blob/main/day03/Seminar_WandB_and_Coding.ipynb).
-
-- [HSE DLA Course Introduction Week](https://github.com/markovka17/dla/tree/2024/week01): combines the two seminars above into one with some updates, including an extra example for [Comet ML](https://www.comet.com/docs/v2/).
-
-- [PyTorch Basics](https://github.com/markovka17/dla/tree/2024/week01/intro_to_pytorch): several notebooks with [PyTorch](https://pytorch.org/docs/stable/index.html) basics and corresponding seminar recordings from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/).
-
-To start working with a template, just click on the `use this template` button.
-
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-
-You can choose any of the branches as a starting point. [Set your choice as the default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in the repository settings. You can also [delete unnecessary branches](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-and-deleting-branches-within-your-repository).
-
-## Examples
-
-> [!IMPORTANT]
-> The main branch leaves some of the code parts empty or fills them with dummy examples, showing just the base structure. The final users can add code required for their own tasks.
-
-You can find examples of this template completed for different tasks in other branches:
-
-- [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main): the variant of the `main` branch with [HuggingFace](https://huggingface.co/) Integration. Supports multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
-
-- [Image classification](https://github.com/Blinorot/pytorch_project_template/tree/example/image-classification): simple classification problem on [MNIST](https://yann.lecun.com/exdb/mnist/) and [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html) datasets.
-
-- [ASR](https://github.com/Blinorot/pytorch_project_template/tree/example/asr): template for the automatic speech recognition (ASR) task. Some of the parts (for example, `collate_fn` and beam search for `text_encoder`) are missing for studying purposes of [HSE DLA course](https://github.com/markovka17/dla).
+```text
+.
+├── inference.py                         # Hydra inference entry point
+├── src/
+│   ├── configs/                         # Hydra configs
+│   │   ├── datasets/                    # Target datasets
+│   │   ├── model/                       # GPTSniffer model config
+│   │   ├── tta/                         # TTA method configs
+│   │   └── writer/                      # WandB / Comet ML configs
+│   ├── datasets/                        # Dataset and collate logic
+│   ├── model/                           # GPTSniffer classifier wrapper
+│   ├── metrics/                         # Classification metrics
+│   ├── trainer/                         # Inferencer
+│   └── tta/                             # TTA implementations
+├── gptsniffer_finetuning/               # Fine-tuning utilities and local data
+├── run_main.ipynb                       # Colab notebook for 4 datasets x 4 methods
+├── run_t2a.ipynb                        # Colab notebook for T^2A runs
+├── run_aigcodeset_hyperparameters.ipynb # AIGCodeSet ablation runs
+├── sklearn_logreg_baseline.py           # TF-IDF logistic regression baseline
+├── codegendetect_codebert_eval.py       # External CodeBERT detector evaluation
+├── gptsniffer_diagnostics.py            # Source detector bias diagnostics
+└── extract*.py                          # WandB metric/plot extraction scripts
+```
 
 ## Installation
 
-Installation may depend on your task. The general steps are the following:
-
-0. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
-
-   a. `conda` version:
-
-   ```bash
-   # create env
-   conda create -n project_env python=PYTHON_VERSION
-
-   # activate env
-   conda activate project_env
-   ```
-
-   b. `venv` (`+pyenv`) version:
-
-   ```bash
-   # create env
-   ~/.pyenv/versions/PYTHON_VERSION/bin/python3 -m venv project_env
-
-   # alternatively, using default python version
-   python3 -m venv project_env
-
-   # activate env
-   source project_env/bin/activate
-   ```
-
-1. Install all required packages
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Install `pre-commit`:
-   ```bash
-   pre-commit install
-   ```
-
-## How To Use
-
-To train a model, run the following command:
+Create an environment and install dependencies:
 
 ```bash
-python3 train.py -cn=CONFIG_NAME HYDRA_CONFIG_ARGUMENTS
+conda create -n coursework_1 python=3.10
+conda activate coursework_1
+pip install -r requirements.txt
 ```
 
-Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
-
-To run inference (evaluate the model or save predictions):
+If you use WandB logging:
 
 ```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
+wandb login
 ```
 
-## Useful Links:
+The default model config loads weights from:
 
-You may find the following links useful:
+```text
+romangeek/hmcorp_python_gptsniffer
+```
 
-- [Report branch](https://github.com/Blinorot/pytorch_project_template/tree/report): Guidelines for writing a scientific report/paper (with an emphasis on DL projects).
+Set `HF_TOKEN` if HuggingFace rate limits become an issue.
 
-- [CLAIRE Template](https://github.com/CLAIRE-Labo/python-ml-research-template): additional template by [EPFL CLAIRE Laboratory](https://www.epfl.ch/labs/claire/) that can be combined with ours to enhance experiments reproducibility via [Docker](https://www.docker.com/).
+## Data
 
-- [Mamba](https://github.com/mamba-org/mamba) and [Poetry](https://python-poetry.org/): alternatives to [Conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) and [pip](https://pip.pypa.io/en/stable/installation/) package managers given above.
+The expected local HMCorp-derived files are:
 
-- [Awesome README](https://github.com/matiassingers/awesome-readme): a list of awesome README files for inspiration. Check the basics [here](https://github.com/PurpleBooth/a-good-readme-template).
+```text
+gptsniffer_finetuning/dataset/python/test.jsonl
+gptsniffer_finetuning/dataset/python/test_no_comment.jsonl
+gptsniffer_finetuning/dataset/java/test.jsonl
+```
 
-## Credits
+The fourth evaluation dataset is loaded from HuggingFace:
 
-This repository is based on a heavily modified fork of [pytorch-template](https://github.com/victoresque/pytorch-template) and [asr_project_template](https://github.com/WrathOfGrapes/asr_project_template) repositories.
+```text
+basakdemirok/AIGCodeSet
+```
+
+Each dataset must contain a `code` field and one label field from:
+
+```text
+labels, label, generated, target
+```
+
+## Running Inference
+
+The main entry point is:
+
+```bash
+python -u inference.py
+```
+
+By default, it uses:
+
+- dataset: `gptsniffer_python_test`
+- TTA: `none`
+- writer: `wandb`
+- batch size: `128`
+
+### Disable Logging
+
+For local smoke tests:
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_python_test \
+  tta=none \
+  writer.mode=disabled \
+  dataloader.batch_size=1 \
+  +datasets.test.limit=1
+```
+
+### Run Without TTA
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_python_test \
+  tta=none \
+  writer.mode=disabled
+```
+
+### Run TENT
+
+Episodic TENT resets adapted weights after every batch:
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_aigcodeset_test \
+  tta=tent \
+  tta.lr=1e-5 \
+  tta.steps=1 \
+  tta.reset_each_batch=true
+```
+
+Accumulated TENT keeps updates across batches:
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_aigcodeset_test \
+  tta=tent \
+  tta.lr=1e-5 \
+  tta.steps=1 \
+  tta.reset_each_batch=false
+```
+
+### Run Centroid-Based TTA
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_aigcodeset_test \
+  tta=centroids \
+  tta.distance=cosine \
+  tta.logit_scale=10
+```
+
+### Run T^2A-Inspired TTA
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_aigcodeset_test \
+  tta=t2a \
+  tta.lr=1e-6 \
+  tta.steps=1 \
+  tta.reset_each_batch=true
+```
+
+## Dataset Config Names
+
+Use one of these Hydra dataset configs:
+
+```text
+gptsniffer_python_test
+gptsniffer_python_no_comment_test
+gptsniffer_java_test
+gptsniffer_aigcodeset_test
+```
+
+Example:
+
+```bash
+python -u inference.py datasets=gptsniffer_java_test tta=centroids
+```
+
+## Logging
+
+WandB is enabled by default in `src/configs/inference_gptsniffer.yaml`.
+
+To set project and run names:
+
+```bash
+python -u inference.py \
+  datasets=gptsniffer_java_test \
+  tta=centroids \
+  writer=wandb \
+  writer.project_name=gptsniffer-tta-detection \
+  writer.run_name=java_centroids
+```
+
+To disable logging:
+
+```bash
+writer.mode=disabled
+```
+
+Comet ML can be used with:
+
+```bash
+writer=cometml
+```
+
+## Reproducing Main Experiments
+
+The Colab notebooks automate the main runs:
+
+- `run_main.ipynb`: four target datasets with `none`, `tent`, accumulated `tent`, and `centroids`.
+- `run_t2a.ipynb`: T^2A-inspired runs on all four datasets.
+- `run_aigcodeset_hyperparameters.ipynb`: AIGCodeSet ablations for TENT and centroid settings.
+- `run_codegendetect_codebert.ipynb`: evaluation of the external CodeBERT detector.
+- `run_gptsniffer_diagnostics.ipynb`: prediction-bias diagnostics.
+
+The notebooks assume a Colab-style environment and a local dataset archive placed
+under `gptsniffer_finetuning/dataset.zip`.
+
+## Extracting Results
+
+The repository includes helper scripts for extracting logged metrics:
+
+```bash
+python extract.py
+python extract_hyperparameters.py
+python extract_t2a.py
+python extract_wandb_plots.py
+```
+
+Generated CSV files used in the report include:
+
+```text
+wandb_metrics.csv
+wandb_hyperparameter_metrics.csv
+wandb_t2a_metrics.csv
+sklearn_logreg_metrics.csv
+codegendetect_codebert_metrics.csv
+gptsniffer_diagnostics.csv
+```
+
+Plots are saved under:
+
+```text
+wandb_plots/
+```
+
+## Sanity Checks
+
+Run the TF-IDF logistic regression baseline:
+
+```bash
+python sklearn_logreg_baseline.py
+```
+
+Run the external CodeBERT detector:
+
+```bash
+python codegendetect_codebert_eval.py
+```
+
+Run source detector diagnostics:
+
+```bash
+python gptsniffer_diagnostics.py
+```
+
+These checks are useful for separating implementation issues from genuine target
+distribution shift.
+
+## Notes
+
+- The default inference batch size is `128`, chosen for A100/Colab-style runs.
+- For local CPU testing, reduce `dataloader.batch_size`.
+- Local predictions are saved under `data/saved/<inferencer.save_path>` only when
+  `inferencer.save_predictions=true`.
+- TTA does not save adapted model weights; adaptation happens during inference.
 
 ## License
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
+See [LICENSE](LICENSE).
