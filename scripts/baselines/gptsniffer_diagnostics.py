@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from datasets import load_dataset
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import (
@@ -15,8 +15,8 @@ from transformers import (
 
 
 LABEL_KEYS = ("labels", "label", "generated", "target")
-ROOT = Path(__file__).resolve().parent
-DEFAULT_MODEL_NAME = "azherali/CodeGenDetect-CodeBert"
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MODEL_NAME = "romangeek/hmcorp_python_gptsniffer"
 
 
 DATASETS = {
@@ -46,8 +46,8 @@ DATASETS = {
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate azherali/CodeGenDetect-CodeBert on the four target "
-            "datasets used in the GPTSniffer TTA experiments."
+            "Diagnose GPTSniffer predictions: class balance, predicted positive "
+            "rate, and confusion matrices on all evaluation datasets."
         )
     )
     parser.add_argument(
@@ -55,35 +55,19 @@ def parse_args():
         default=DEFAULT_MODEL_NAME,
         help="HuggingFace model id or local path.",
     )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=64,
-        help="Evaluation batch size.",
-    )
-    parser.add_argument(
-        "--max-length",
-        type=int,
-        default=512,
-        help="Maximum tokenizer sequence length.",
-    )
-    parser.add_argument(
-        "--eval-limit",
-        type=int,
-        default=None,
-        help="Optional number of samples per dataset for quick smoke tests.",
-    )
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--max-length", type=int, default=512)
+    parser.add_argument("--eval-limit", type=int, default=None)
     parser.add_argument(
         "--device",
         default="auto",
         choices=("auto", "cpu", "cuda", "mps"),
-        help="Device used for model inference.",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "codegendetect_codebert_metrics.csv",
-        help="Where to save evaluation metrics.",
+        default=ROOT / "results/metrics/gptsniffer_diagnostics.csv",
+        help="Where to save diagnostics.",
     )
     return parser.parse_args()
 
@@ -150,31 +134,46 @@ def prepare_dataset(dataset, tokenizer, max_length, code_key="code"):
     ).remove_columns(keep_columns)
 
 
-def compute_metrics(labels, predictions):
-    return {
-        "accuracy": accuracy_score(labels, predictions),
-        "precision": precision_score(labels, predictions, zero_division=0),
-        "recall": recall_score(labels, predictions, zero_division=0),
-        "f1": f1_score(labels, predictions, zero_division=0),
-    }
-
-
 @torch.no_grad()
-def evaluate_dataset(model, dataloader, device):
-    model.eval()
-    predictions = []
+def collect_predictions(model, dataloader, device):
     labels = []
+    predictions = []
+    positive_probs = []
 
+    model.eval()
     for batch in tqdm(dataloader, leave=False):
         batch = {key: value.to(device) for key, value in batch.items()}
         batch_labels = batch.pop("labels")
         outputs = model(**batch)
-        batch_predictions = outputs.logits.argmax(dim=-1)
+        probs = outputs.logits.softmax(dim=-1)
+        batch_predictions = probs.argmax(dim=-1)
 
-        predictions.extend(batch_predictions.cpu().tolist())
         labels.extend(batch_labels.cpu().tolist())
+        predictions.extend(batch_predictions.cpu().tolist())
+        positive_probs.extend(probs[:, 1].cpu().tolist())
 
-    return labels, predictions
+    return labels, predictions, positive_probs
+
+
+def summarize(dataset_name, labels, predictions, positive_probs):
+    tn, fp, fn, tp = confusion_matrix(labels, predictions, labels=[0, 1]).ravel()
+    total = len(labels)
+    positive_count = sum(labels)
+    predicted_positive_count = sum(predictions)
+
+    return {
+        "dataset": dataset_name,
+        "num_samples": total,
+        "label_positive_rate": positive_count / total,
+        "label_negative_rate": (total - positive_count) / total,
+        "predicted_positive_rate": predicted_positive_count / total,
+        "predicted_negative_rate": (total - predicted_positive_count) / total,
+        "mean_positive_probability": sum(positive_probs) / total,
+        "tn": tn,
+        "fp": fp,
+        "fn": fn,
+        "tp": tp,
+    }
 
 
 def main():
@@ -193,24 +192,32 @@ def main():
     for dataset_name, config in DATASETS.items():
         print(f"Evaluating {dataset_name}...")
         dataset = load_eval_dataset(config, limit=args.eval_limit)
-        tokenized = prepare_dataset(dataset, tokenizer, max_length=args.max_length)
+        tokenized = prepare_dataset(dataset, tokenizer, args.max_length)
         dataloader = DataLoader(
             tokenized,
             batch_size=args.batch_size,
             shuffle=False,
             collate_fn=collator,
         )
-        labels, predictions = evaluate_dataset(model, dataloader, device)
-        metrics = compute_metrics(labels, predictions)
 
-        row = {"dataset": dataset_name, "num_samples": len(labels), **metrics}
+        labels, predictions, positive_probs = collect_predictions(
+            model, dataloader, device
+        )
+        row = summarize(dataset_name, labels, predictions, positive_probs)
         rows.append(row)
-        metric_text = " ".join(f"{key}={value:.4f}" for key, value in metrics.items())
-        print(f"{dataset_name}: n={len(labels)} {metric_text}")
+
+        print(
+            f"{dataset_name}: "
+            f"label_pos={row['label_positive_rate']:.4f} "
+            f"pred_pos={row['predicted_positive_rate']:.4f} "
+            f"mean_p1={row['mean_positive_probability']:.4f} "
+            f"tn={row['tn']} fp={row['fp']} fn={row['fn']} tp={row['tp']}"
+        )
 
     result = pd.DataFrame(rows)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(args.output, index=False)
-    print(f"Saved metrics to {args.output}")
+    print(f"Saved diagnostics to {args.output}")
 
 
 if __name__ == "__main__":

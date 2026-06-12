@@ -2,7 +2,9 @@
 
 This repository contains the experimental pipeline for evaluating test-time
 adaptation (TTA) methods for AI-generated code detection. The source detector is
-a GPTSniffer-style CodeBERT classifier fine-tuned on the Python split of HMCorp.
+a GPTSniffer-style CodeBERT classifier fine-tuned on the Python split of HMCorp,
+the benchmark introduced in CodeGPTSensor.
+
 The project evaluates how this detector behaves under target-domain shifts and
 whether lightweight TTA methods can improve robustness without target labels.
 
@@ -24,7 +26,7 @@ pipeline.
   - `tent`: TENT-style entropy minimization on LayerNorm affine parameters.
   - `tent` with accumulation: same method without resetting adapted weights after each batch.
   - `centroids`: SHOT-inspired centroid-based pseudo-label correction in embedding space.
-  - `t2a`: lightweight T2A-inspired uncertainty-aware negative learning.
+  - `t2a`: lightweight T^2 A-inspired uncertainty-aware negative learning.
 - Sanity-check baselines:
   - TF-IDF + logistic regression.
   - External CodeBERT detector evaluation.
@@ -47,13 +49,13 @@ pipeline.
 │   ├── trainer/                         # Inferencer
 │   └── tta/                             # TTA implementations
 ├── gptsniffer_finetuning/               # Fine-tuning utilities and local data
-├── run_main.ipynb                       # Colab notebook for 4 datasets x 4 methods
-├── run_t2a.ipynb                        # Colab notebook for T2A runs
-├── run_aigcodeset_hyperparameters.ipynb # AIGCodeSet ablation runs
-├── sklearn_logreg_baseline.py           # TF-IDF logistic regression baseline
-├── codegendetect_codebert_eval.py       # External CodeBERT detector evaluation
-├── gptsniffer_diagnostics.py            # Source detector bias diagnostics
-└── extract*.py                          # WandB metric/plot extraction scripts
+├── notebooks/                           # Colab runners for full experiments
+├── scripts/
+│   ├── baselines/                       # Sanity-check baseline scripts
+│   └── extract/                         # WandB metric/plot extraction scripts
+└── results/
+    ├── metrics/                         # CSV metric tables used in the report
+    └── plots/                           # Exported diagnostic plots
 ```
 
 ## Installation
@@ -176,7 +178,7 @@ python -u inference.py \
   tta.logit_scale=10
 ```
 
-### Run T2A-Inspired TTA
+### Run T^2 A-Inspired TTA
 
 ```bash
 python -u inference.py \
@@ -235,11 +237,11 @@ writer=cometml
 
 The Colab notebooks automate the main runs:
 
-- `run_main.ipynb`: four target datasets with `none`, `tent`, accumulated `tent`, and `centroids`.
-- `run_t2a.ipynb`: T2A-inspired runs on all four datasets.
-- `run_aigcodeset_hyperparameters.ipynb`: AIGCodeSet ablations for TENT and centroid settings.
-- `run_codegendetect_codebert.ipynb`: evaluation of the external CodeBERT detector.
-- `run_gptsniffer_diagnostics.ipynb`: prediction-bias diagnostics.
+- `notebooks/run_main.ipynb`: four target datasets with `none`, `tent`, accumulated `tent`, and `centroids`.
+- `notebooks/run_t2a.ipynb`: T^2 A-inspired runs on all four datasets.
+- `notebooks/run_aigcodeset_hyperparameters.ipynb`: AIGCodeSet ablations for TENT and centroid settings.
+- `notebooks/run_codegendetect_codebert.ipynb`: evaluation of the external CodeBERT detector.
+- `notebooks/run_gptsniffer_diagnostics.ipynb`: prediction-bias diagnostics.
 
 The notebooks assume a Colab-style environment and a local dataset archive placed
 under `gptsniffer_finetuning/dataset.zip`.
@@ -249,27 +251,27 @@ under `gptsniffer_finetuning/dataset.zip`.
 The repository includes helper scripts for extracting logged metrics:
 
 ```bash
-python extract.py
-python extract_hyperparameters.py
-python extract_t2a.py
-python extract_wandb_plots.py
+python scripts/extract/extract.py
+python scripts/extract/extract_hyperparameters.py
+python scripts/extract/extract_t2a.py
+python scripts/extract/extract_wandb_plots.py
 ```
 
 Generated CSV files used in the report include:
 
 ```text
-wandb_metrics.csv
-wandb_hyperparameter_metrics.csv
-wandb_t2a_metrics.csv
-sklearn_logreg_metrics.csv
-codegendetect_codebert_metrics.csv
-gptsniffer_diagnostics.csv
+results/metrics/wandb_metrics.csv
+results/metrics/wandb_hyperparameter_metrics.csv
+results/metrics/wandb_t2a_metrics.csv
+results/metrics/sklearn_logreg_metrics.csv
+results/metrics/codegendetect_codebert_metrics.csv
+results/metrics/gptsniffer_diagnostics.csv
 ```
 
 Plots are saved under:
 
 ```text
-wandb_plots/
+results/plots/
 ```
 
 ## Sanity Checks
@@ -277,19 +279,19 @@ wandb_plots/
 Run the TF-IDF logistic regression baseline:
 
 ```bash
-python sklearn_logreg_baseline.py
+python scripts/baselines/sklearn_logreg_baseline.py
 ```
 
 Run the external CodeBERT detector:
 
 ```bash
-python codegendetect_codebert_eval.py
+python scripts/baselines/codegendetect_codebert_eval.py
 ```
 
 Run source detector diagnostics:
 
 ```bash
-python gptsniffer_diagnostics.py
+python scripts/baselines/gptsniffer_diagnostics.py
 ```
 
 These checks are useful for separating implementation issues from genuine target
@@ -307,15 +309,16 @@ distribution shift.
 
 Main detector and model:
 
-- GPTSniffer: [GPTSniffer: A CodeBERT-based classifier to detect source code written by ChatGPT](https://www.sciencedirect.com/science/article/pii/S0164121224001043).
+- GPTSniffer: [Is this Snippet Written by ChatGPT? An Empirical Study with a CodeBERT-Based Classifier](https://arxiv.org/abs/2307.09381).
 - CodeBERT: [CodeBERT: A Pre-Trained Model for Programming and Natural Languages](https://arxiv.org/abs/2002.08155).
+- CodeGPTSensor / HMCorp: [Distinguishing LLM-generated from Human-written Code by Contrastive Learning](https://arxiv.org/abs/2411.04704).
 
 TTA and pseudo-labeling methods:
 
 - TENT: [Fully Test-time Adaptation by Entropy Minimization](https://arxiv.org/abs/2006.10726).
 - Pseudo-labeling: [Pseudo-Label: The Simple and Efficient Semi-Supervised Learning Method for Deep Neural Networks](https://citeseerx.ist.psu.edu/document?doi=798d9840d2439a0e5d47bcf5d164aa46d5e7dc26&repid=rep1&type=pdf).
 - SHOT: [Do We Really Need to Access the Source Data? Source Hypothesis Transfer for Unsupervised Domain Adaptation](https://arxiv.org/abs/2002.08546).
-- T2A: [Think Twice before Adaptation: Improving Adaptability of DeepFake Detection via Online Test-Time Adaptation](https://arxiv.org/abs/2505.18787).
+- T^2 A: [Think Twice before Adaptation: Improving Adaptability of DeepFake Detection via Online Test-Time Adaptation](https://arxiv.org/abs/2505.18787).
 
 Evaluation datasets and baselines:
 
